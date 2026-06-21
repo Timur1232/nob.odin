@@ -12,6 +12,12 @@ Clone repo inside your project directory:
 git clone https://github.com/nob.odin.git nob
 ```
 
+Alternatively you can download only `nob.odin` file and use `package nob` for build recipe:
+
+```sh
+wget https://raw.githubusercontent.com/Timur1232/nob.odin/refs/heads/master/nob.odin
+```
+
 Create build "script" file:
 
 ```odin
