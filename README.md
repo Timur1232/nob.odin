@@ -46,7 +46,7 @@ main :: proc() {
     }
 
     if len(os.args) > 1 && os.args[1] == "-run" { // or use `core:flags` module
-        // `cmd` automaticly cleared when `reset` parameter is true (default)
+        // `cmd` automaticly cleared after `cmd_run()` when `reset` parameter is true (default)
         append(&cmd, fmt.tprintf("./%v", out_name))
         if !nob.cmd_run(&cmd) {
             nob.log(.Error, "Unable to run project")
