@@ -1,6 +1,6 @@
 # nob.odin (WIP)
 
-Simple utilities for running exteral commands for build recipies using just Odin compiler.
+Simple utilities for running external commands for build recipes using just Odin compiler.
 
 Inspired by [nob.h](https://github.com/tsoding/nob.h).
 
