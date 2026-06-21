@@ -20,7 +20,7 @@ Create build "script" file (from [build example](https://github.com/Timur1232/no
 ```odin
 package build
 
-import nob "../../"
+import nob "../../" // It would be `import "nob"`
 import "core:os"
 import "core:fmt"
 
