@@ -1,7 +1,7 @@
 package examples
 
 import "core:strings"
-import nob "../"
+import nob "../../"
 import "core:fmt"
 
 cmd_echo :: proc(cmd: ^nob.Cmd) {

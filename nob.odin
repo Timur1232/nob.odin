@@ -47,6 +47,9 @@ cmd_run_slice :: proc(
 ) -> (
     ok: bool
 ) {
+    if len(workdir) > 0 {
+        log(.Info, "WORKDIR: %v", workdir)
+    }
     log(.Info, "CMD: %v", cmd)
 
     desc: os.Process_Desc
@@ -134,6 +137,90 @@ procs_wait :: proc(procs: ^Procs, allocator := context.temp_allocator) -> (ok: b
 log :: proc(level: logm.Level, fmt: string, args: ..any, location := #caller_location) {
     context.logger = runtime.Logger{ logger_proc, nil, .Debug, nil }
     logm.logf(level, fmt, ..args, location = location)
+}
+
+// When ext = "" then all files whould be checked
+needs_rebuild :: proc{
+    needs_rebuild_by_file_info,
+    needs_rebuild_by_path,
+    needs_rebuild1_by_path,
+    needs_rebuild1_by_time,
+}
+
+// When ext = "" then all files whould be checked
+needs_rebuild_by_file_info :: proc(out_path: string, source_fis: []os.File_Info, ext := ".odin") -> bool {
+    if !os.exists(out_path) {
+        return true
+    }
+
+    out_write_time, err := os.last_write_time_by_name(out_path)
+    if err != nil {
+        log(.Error, "Unable to read last write time for out file %v", out_path)
+        return false
+    }
+
+    for fi in source_fis {
+        if len(ext) == 0 || ext == filepath.ext(fi.name) {
+            if needs_rebuild1_by_time(out_write_time, fi.modification_time) {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+// When ext = "" then all files whould be checked
+needs_rebuild_by_path :: proc(out_path: string, source_paths: []string, ext := ".odin") -> bool {
+    if !os.exists(out_path) {
+        return true
+    }
+
+    out_write_time, err := os.last_write_time_by_name(out_path)
+    if err != nil {
+        log(.Error, "Unable to read last write time for out file %v", out_path)
+        return false
+    }
+
+    for p in source_paths {
+        if len(ext) == 0 || ext == filepath.ext(p) {
+            source_write_time, source_err := os.last_write_time_by_name(p)
+            if source_err != nil {
+                log(.Error, "Unable to read last write time for source file %v", p, source_err)
+                return false
+            }
+            if needs_rebuild1_by_time(out_write_time, source_write_time) {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+needs_rebuild1_by_path :: proc(out_path: string, source_path: string) -> bool {
+    if !os.exists(out_path) {
+        return true
+    }
+
+    out_write_time, out_err := os.last_write_time_by_name(out_path)
+    if out_err != nil {
+        log(.Error, "Unable to read last write time for out file %v. Error: %v", out_path, out_err)
+        return false
+    }
+
+    source_write_time, source_err := os.last_write_time_by_name(source_path)
+    if source_err != nil {
+        log(.Error, "Unable to read last write time for source file %v", source_path, source_err)
+        return false
+    }
+
+    return needs_rebuild1_by_time(out_write_time, source_write_time)
+}
+
+needs_rebuild1_by_time :: proc(out_write_time: time.Time, source_write_time: time.Time) -> bool {
+    diff := time.diff(out_write_time, source_write_time)
+    return diff >= 0
 }
 
 @(private="file")
@@ -277,3 +364,4 @@ import "core:fmt"
 import "core:os"
 import "core:time"
 import "core:strings"
+import "core:path/filepath"

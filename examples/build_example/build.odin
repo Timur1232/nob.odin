@@ -1,31 +1,6 @@
-# nob.odin (WIP)
-
-Simple utilities for running external commands for build recipes using just Odin compiler.
-
-Inspired by [nob.h](https://github.com/tsoding/nob.h).
-
-## Usage
-
-See [examples](https://github.com/Timur1232/nob.odin/tree/master/examples) for better understanding.
-
-Clone repo inside your project directory:
-
-```sh
-git clone https://github.com/nob.odin.git nob
-```
-
-Alternatively you can download only `nob.odin` file and use `package nob` for build recipe:
-
-```sh
-wget https://raw.githubusercontent.com/Timur1232/nob.odin/refs/heads/master/nob.odin
-```
-
-Create build "script" file:
-
-```odin
 package build
 
-import nob "../"
+import nob "../../"
 import "core:os"
 import "core:fmt"
 
@@ -59,10 +34,3 @@ main :: proc() {
         }
     }
 }
-```
-
-And run it:
-
-```sh
-odin run build.odin -file -- -run
-```
