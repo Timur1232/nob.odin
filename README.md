@@ -6,6 +6,8 @@ Inspired by [nob.h](https://github.com/tsoding/nob.h).
 
 ## Usage
 
+See [examples](https://github.com/Timur1232/nob.odin/tree/master/examples) for better understanding.
+
 Clone repo inside your project directory:
 
 ```sh
@@ -29,8 +31,6 @@ import "core:fmt"
 out_name :: "main"
 
 main :: proc() {
-    defer free_all(context.temp_allocator)
-
     cmd: nob.Cmd
     append(&cmd, "odin")
     append(&cmd, "build", "src")
@@ -41,7 +41,8 @@ main :: proc() {
     }
 
     if len(os.args) > 1 && os.args[1] == "-run" { // or use core:flags module
-        append(&cmd, fmt.tprintf("./%v", out_name)) // cmd automaticly cleared on when reset parameter is true (default)
+        // cmd automaticly cleared on when reset parameter is true (default)
+        append(&cmd, fmt.tprintf("./%v", out_name))
         if !nob.cmd_run(&cmd) {
             nob.log(.Error, "Unable to run project")
             os.exit(1)
@@ -55,5 +56,3 @@ And run it:
 ```sh
 odin run build.odin -file -- -run
 ```
-
-
