@@ -6,7 +6,7 @@ Inspired by [nob.h](https://github.com/tsoding/nob.h).
 
 ## Usage
 
-See [examples](https://github.com/Timur1232/nob.odin/tree/master/examples) for better understanding.
+See [run_examples.odin](https://github.com/Timur1232/nob.odin/blob/master/run_examples.odin) and [examples](https://github.com/Timur1232/nob.odin/tree/master/examples) for better understanding.
 
 Clone repo inside your project directory:
 
@@ -14,18 +14,18 @@ Clone repo inside your project directory:
 git clone https://github.com/nob.odin.git nob
 ```
 
-Alternatively you can download only `nob.odin` file and use `package nob` for build recipe:
+Alternatively you can download only `nob.odin` file and use `package nob` for build recipe (see [run_examples.odin](https://github.com/Timur1232/nob.odin/blob/master/run_examples.odin)):
 
 ```sh
 wget https://raw.githubusercontent.com/Timur1232/nob.odin/refs/heads/master/nob.odin
 ```
 
-Create build "script" file:
+Create build "script" file (from [build example](https://github.com/Timur1232/nob.odin/blob/master/examples/build_example/build.odin)):
 
 ```odin
 package build
 
-import nob "../"
+import nob "../../"
 import "core:os"
 import "core:fmt"
 
@@ -65,4 +65,10 @@ And run it:
 
 ```sh
 odin run build.odin -file -- -run
+```
+
+Run project root to run all examples (see [run_examples.odin](https://github.com/Timur1232/nob.odin/blob/master/run_examples.odin)):
+
+```sh
+odin run .
 ```
