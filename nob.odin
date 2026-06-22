@@ -8,7 +8,12 @@ Stdio_Redirect :: union {
     ^os.File,
 }
 
-Proc_String_Redirect :: struct {
+Stdin_Redirect :: union {
+    string,
+    ^os.File,
+}
+
+String_Redirect :: struct {
     file_r: ^os.File,
     file_w: ^os.File,
     sb: ^strings.Builder,
@@ -16,8 +21,8 @@ Proc_String_Redirect :: struct {
 
 Proc :: struct {
     using os_process: os.Process,
-    stdout: Proc_String_Redirect,
-    stderr: Proc_String_Redirect,
+    stdout: String_Redirect,
+    stderr: String_Redirect,
 }
 Procs :: [dynamic]Proc
 
@@ -27,11 +32,12 @@ cmd_run_dynamic_array :: proc(
     async: ^Procs = nil,
     stdout: Stdio_Redirect = os.stdout,
     stderr: Stdio_Redirect = os.stderr,
+    stdin: Stdin_Redirect = os.stdin,
     workdir := "",
 ) -> (
     ok: bool
 ) {
-    ok = cmd_run_slice(cmd[:], async = async, stdout = stdout, stderr = stderr, workdir = workdir)
+    ok = cmd_run_slice(cmd[:], async = async, stdout = stdout, stderr = stderr, stdin = stdin, workdir = workdir)
     if reset {
         clear(cmd)
     }
@@ -43,6 +49,7 @@ cmd_run_slice :: proc(
     async: ^Procs = nil,
     stdout: Stdio_Redirect = os.stdout,
     stderr: Stdio_Redirect = os.stderr,
+    stdin: Stdin_Redirect = os.stdin,
     workdir := "",
 ) -> (
     ok: bool
@@ -56,7 +63,7 @@ cmd_run_slice :: proc(
     desc.command = cmd
     desc.working_dir = workdir
 
-    process, proc_err := create_process(desc, stdout, stderr)
+    process, proc_err := create_process(desc, stdout, stderr, stdin)
     if proc_err != nil {
         log(.Error, "Unable to create process. Error: %v", proc_err)
         return false
@@ -67,12 +74,6 @@ cmd_run_slice :: proc(
             os.close(process.stdout.file_r)
             os.close(process.stderr.file_r)
         }
-        defer if v, ok := stdout.(^os.File); ok && v != os.stdout {
-            os.close(v)
-        }
-        defer if v, ok := stderr.(^os.File); ok && v != os.stderr {
-            os.close(v)
-        }
 
         state, err := pipe_to_string_and_wait(process)
         if err != nil {
@@ -80,7 +81,7 @@ cmd_run_slice :: proc(
         }
 
         if !state.success {
-            log(.Error, "Process ended unsuccessfuly. Exit code: %v", state.exited)
+            log(.Error, "Process ended unsuccessfuly. Exit code: %v", state.exit_code)
             return false
         }
     } else {
@@ -186,7 +187,7 @@ needs_rebuild_by_path :: proc(out_path: string, source_paths: []string, ext := "
         if len(ext) == 0 || ext == filepath.ext(p) {
             source_write_time, source_err := os.last_write_time_by_name(p)
             if source_err != nil {
-                log(.Error, "Unable to read last write time for source file %v", p, source_err)
+                log(.Error, "Unable to read last write time for source file %v. Error: %v", p, source_err)
                 return false
             }
             if needs_rebuild1_by_time(out_write_time, source_write_time) {
@@ -211,7 +212,7 @@ needs_rebuild1_by_path :: proc(out_path: string, source_path: string) -> bool {
 
     source_write_time, source_err := os.last_write_time_by_name(source_path)
     if source_err != nil {
-        log(.Error, "Unable to read last write time for source file %v", source_path, source_err)
+        log(.Error, "Unable to read last write time for source file %v. Error: %v", source_path, source_err)
         return false
     }
 
@@ -256,7 +257,7 @@ pipe_to_string_and_wait :: proc(
 
 @(private="file")
 @(require_results)
-redirect :: proc(process: ^Proc, stdio: Stdio_Redirect) -> (stdio_w: ^os.File, err: os.Error) {
+redirect :: proc(process: ^Proc, stdio: Stdio_Redirect) -> (stdio_w: ^os.File, close: bool, err: os.Error) {
     switch v in stdio {
     case nil: stdio_w = nil
     case ^os.File: stdio_w = v
@@ -266,6 +267,7 @@ redirect :: proc(process: ^Proc, stdio: Stdio_Redirect) -> (stdio_w: ^os.File, e
         process.stdout.file_r = stdio_r
         process.stdout.file_w = stdio_w
         process.stdout.sb = v
+        close = true
     }
     return
 }
@@ -276,6 +278,7 @@ create_process :: proc(
     desc: os.Process_Desc,
     stdout_redir: Stdio_Redirect,
     stderr_redir: Stdio_Redirect,
+    stdin_redir: Stdin_Redirect,
     loc := #caller_location,
 ) -> (
     process: Proc,
@@ -284,18 +287,44 @@ create_process :: proc(
     assert(desc.stdout == nil, "Cannot redirect stdout when it's being captured", loc)
     assert(desc.stderr == nil, "Cannot redirect stderr when it's being captured", loc)
 
-    stdout_w := redirect(&process, stdout_redir) or_return
-    stderr_w := redirect(&process, stderr_redir) or_return
-
-    defer if stdout_w != os.stdout {
+    stdout_w, close_out := redirect(&process, stdout_redir) or_return
+    // We need to close writing end of a pipe in parent process to prevent blocking on reading end of pipe
+    defer if close_out {
         os.close(stdout_w)
     }
-    defer if stderr_w != os.stderr {
+
+    stderr_w, close_err := redirect(&process, stderr_redir) or_return
+    // Same here
+    defer if close_err {
         os.close(stderr_w)
     }
+
+    stdin_r: ^os.File
+    close_stdin: bool
+
+    switch v in stdin_redir {
+    case nil: stdin_r = nil
+    case ^os.File: stdin_r = v
+    case string:
+        stdin_w: ^os.File
+        stdin_r, stdin_w = os.pipe() or_return
+        defer {
+            os.close(stdin_w)
+        }
+        n := os.write_string(stdin_w, v) or_return
+        assert(n == len(v), "Unable to write string to stdin pipe")
+        close_stdin = true
+    }
+
+    // Close reading end of a pipe duplicate in parent program
+    defer if close_stdin {
+        os.close(stdin_r)
+    }
+
     desc := desc
     desc.stdout = stdout_w
     desc.stderr = stderr_w
+    desc.stdin = stdin_r
 
     os_process := os.process_start(desc) or_return
     process.os_process = os_process
@@ -305,7 +334,7 @@ create_process :: proc(
 
 @(private="file")
 pipe_to_string :: proc(
-    str_redir: Proc_String_Redirect,
+    str_redir: String_Redirect,
     allocator := context.temp_allocator
 ) -> (
     err: os.Error
